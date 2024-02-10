@@ -1,8 +1,9 @@
-import { commandOptions, createClient } from 'redis';
+import { commandOptions } from 'redis';
 import { handleCreation } from './k8s/create-playground';
+import { publisher, subscriber } from './redis/redis';
 
-const subscriber = createClient();
 subscriber.connect();
+publisher.connect();
 
 async function createPlaygroundWorker() {
   while (true) {
@@ -12,8 +13,11 @@ async function createPlaygroundWorker() {
         'create-playground',
         0
       );
-      console.log(response?.element);
+
       await handleCreation(response?.element!);
+
+      const playground = JSON.parse(response?.element!);
+      publisher.hSet('status', playground.name, 'ready');
     } catch (error) {
       console.error(`Error during playground creation: ${error}`);
     }

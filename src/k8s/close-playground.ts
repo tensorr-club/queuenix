@@ -1,26 +1,19 @@
-import {
-  KubeConfig,
-  CoreV1Api,
-  NetworkingV1Api,
-} from '@kubernetes/client-node';
+import { KubeConfig, CoreV1Api } from '@kubernetes/client-node';
+import { publisher } from '../redis/redis';
 
 const kc = new KubeConfig();
 kc.loadFromDefault();
 
+publisher.connect();
+
 const k8sApi = kc.makeApiClient(CoreV1Api);
-const k8sNetworkingApi = kc.makeApiClient(NetworkingV1Api);
 
 export async function handleClose(msg: string) {
   const podInfo = JSON.parse(msg);
   const { podName } = podInfo;
-
   try {
     await k8sApi.deleteNamespacedPod(podName, 'default');
-    await k8sApi.deleteNamespacedService(`${podName}-service`, 'default');
-    await k8sNetworkingApi.deleteNamespacedIngress(
-      `${podName}-ingress`,
-      'default'
-    );
+    publisher.hSet('status', podName, 'closed');
   } catch (err: any) {
     console.log('Error:', err);
   }

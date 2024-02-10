@@ -1,14 +1,12 @@
-import {
-  KubeConfig,
-  CoreV1Api,
-  NetworkingV1Api,
-} from '@kubernetes/client-node';
+import { KubeConfig, CoreV1Api } from '@kubernetes/client-node';
+import { publisher } from '../redis/redis';
 
 const kc = new KubeConfig();
 kc.loadFromDefault();
 
 const k8sApi = kc.makeApiClient(CoreV1Api);
-const k8sNetworkingApi = kc.makeApiClient(NetworkingV1Api);
+
+publisher.connect();
 
 export async function handleStart(msg: string) {
   const podInfo = JSON.parse(msg);
@@ -53,80 +51,9 @@ export async function handleStart(msg: string) {
     },
   };
 
-  const service = {
-    metadata: {
-      name: `${podName}-service`,
-    },
-    spec: {
-      selector: {
-        app: podName,
-      },
-      ports: [
-        {
-          name: `${podName}-app`,
-          port: containerPort,
-        },
-        {
-          name: `${podName}-api`,
-          port: 5001,
-          targetPort: 5001,
-        },
-      ],
-    },
-  };
-
-  const ingress = {
-    metadata: {
-      name: `${podName}-ingress`,
-    },
-    spec: {
-      rules: [
-        {
-          host: `app.${podName}.localhost`,
-          http: {
-            paths: [
-              {
-                pathType: 'Prefix',
-                path: `/`,
-                backend: {
-                  service: {
-                    name: `${podName}-service`,
-                    port: {
-                      number: containerPort,
-                    },
-                  },
-                },
-              },
-            ],
-          },
-        },
-        {
-          host: `api.${podName}.localhost`,
-          http: {
-            paths: [
-              {
-                pathType: 'Prefix',
-                path: `/`,
-                backend: {
-                  service: {
-                    name: `${podName}-service`,
-                    port: {
-                      number: 5001,
-                    },
-                  },
-                },
-              },
-            ],
-          },
-        },
-      ],
-    },
-  };
-
   try {
     await k8sApi.createNamespacedPod('default', pod);
-    await k8sApi.createNamespacedService('default', service);
-    await k8sNetworkingApi.createNamespacedIngress('default', ingress);
+    publisher.hSet('status', podName, 'ready');
   } catch (err: any) {
     console.log('Error:', err);
   }

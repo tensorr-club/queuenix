@@ -1,8 +1,9 @@
-import { commandOptions, createClient } from 'redis';
+import { commandOptions } from 'redis';
 import { handleClose } from './k8s/close-playground';
+import { publisher, subscriber } from './redis/redis';
 
-const subscriber = createClient();
 subscriber.connect();
+publisher.connect();
 
 async function closePlaygroundWorker() {
   while (true) {
@@ -12,8 +13,7 @@ async function closePlaygroundWorker() {
         'close-playground',
         0
       );
-      console.log(response?.element);
-      console.log('Closing playground:');
+
       await handleClose(response?.element!);
     } catch (error) {
       console.error(`Error during playground close: ${error}`);
